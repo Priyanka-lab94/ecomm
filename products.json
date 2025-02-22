@@ -1,0 +1,14 @@
+[
+    {
+        "id": 1,
+        "name": "Laptop",
+        "price": 799.99,
+        "image": "assets/laptop.jpg"
+    },
+    {
+        "id": 2,
+        "name": "Headphones",
+        "price": 199.99,
+        "image": "assets/headphones.jpg"
+    }
+]
