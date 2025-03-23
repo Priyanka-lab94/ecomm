@@ -1,0 +1,120 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-south-1
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+      
+      - name: Build Docker image
+        run: |
+          docker build -t priyalog/nodejs:latest .
+
+      - name: Tag Docker image
+        run: |
+          docker tag priyalog/nodejs:latest priyalog/nodejs:${{ github.sha }}
+      
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Install Trivy
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget
+          wget https://github.com/aquasecurity/trivy/releases/download/v0.42.0/trivy_0.42.0_Linux-64bit.deb
+          sudo dpkg -i trivy_0.42.0_Linux-64bit.deb
+
+      # - name: Scan Docker image with Trivy and generate report
+      #   id: trivy_scan
+      #   run: |
+      #     trivy image --exit-code 0 --format json --output trivy-report.json priyalog/nodejs:latest
+      #     trivy image --exit-code 1 priyalog/nodejs:latest
+      #     if [ $? -ne 0 ]; then
+      #       echo "Vulnerabilities detected!"
+      #       exit 1
+      #     fi
+
+      # - name: Upload Trivy report as an artifact
+      #   uses: actions/upload-artifact@v2
+      #   with:
+      #    name: trivy-report
+      #    path: trivy-report.json
+      
+      - name: Push Docker image to Docker Hub
+        run: |
+          docker push priyalog/nodejs:latest
+          docker push priyalog/nodejs:${{ github.sha }}
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-south-1
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v1
+      
+      - name: Generate Helm chart
+        run: |
+          helm create dockerlabs
+          sed -i 's|repository: ""|repository: priyalog/nodejs|' ./dockerlabs/values.yaml
+          sed -i 's|tag: ""|tag: latest|' ./dockerlabs/values.yaml
+
+      - name: Package Helm chart
+        run: |
+          helm package ./dockerlabs
+
+      - name: Log in to EKS Cluster
+        run: |
+          aws eks update-kubeconfig --name EKS_CLOUD --region ap-south-1
+
+      - name: Deploy to EKS with Helm
+        run: |
+          helm upgrade --install dockerlabs ./dockerlabs --namespace default
+
+      - name: Install ArgoCD
+        run: |
+          kubectl create namespace argocd
+          kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+          kubectl wait --for=condition=available --timeout=600s deployment/argocd-server -n argocd
+          kubectl apply -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/ha/install.yaml
+
+      - name: Expose ArgoCD Server
+        run: |
+          kubectl patch svc argocd-server -n argocd -p '{"spec": {"type": "LoadBalancer"}}'
+
+      - name: Apply ArgoCD Application
+        run: |
+          kubectl apply -f application.yaml
+
+      - name: Output ArgoCD Access Information
+        run: |
+          echo "ArgoCD URL: http://$(kubectl get svc argocd-server -n argocd -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')"
