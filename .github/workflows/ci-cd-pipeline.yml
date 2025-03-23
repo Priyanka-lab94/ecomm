@@ -102,14 +102,14 @@ jobs:
 
       - name: Install ArgoCD
         run: |
-          kubectl create namespace argocd1
-          kubectl apply -n argocd1 -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
-          kubectl wait --for=condition=available --timeout=600s deployment/argocd-server -n argocd
+          kubectl create namespace argocd2
+          kubectl apply -n argocd2 -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+          kubectl wait --for=condition=available --timeout=600s deployment/argocd-server -n argocd2
           kubectl apply -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/ha/install.yaml
 
       - name: Expose ArgoCD Server
         run: |
-          kubectl patch svc argocd-server -n argocd1 -p '{"spec": {"type": "LoadBalancer"}}'
+          kubectl patch svc argocd-server -n argocd2 -p '{"spec": {"type": "LoadBalancer"}}'
 
       - name: Apply ArgoCD Application
         run: |
@@ -117,4 +117,4 @@ jobs:
 
       - name: Output ArgoCD Access Information
         run: |
-          echo "ArgoCD URL: http://$(kubectl get svc argocd-server -n argocd1 -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')"
+          echo "ArgoCD URL: http://$(kubectl get svc argocd-server -n argocd2 -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')"
