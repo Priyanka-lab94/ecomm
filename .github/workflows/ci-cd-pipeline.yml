@@ -102,7 +102,9 @@ jobs:
 
       - name: Install ArgoCD
         run: |
-          kubectl create namespace argocd2
+          kubectl delete namespace argocd1
+          kubectl delete namespace argocd2
+          kubectl create namespace argocd3
           kubectl apply -n argocd2 -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
           kubectl wait --for=condition=available --timeout=600s deployment/argocd-server -n argocd2
           kubectl apply -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/ha/install.yaml
