@@ -44,7 +44,7 @@ jobs:
           wget https://github.com/aquasecurity/trivy/releases/download/v0.42.0/trivy_0.42.0_Linux-64bit.deb
           sudo dpkg -i trivy_0.42.0_Linux-64bit.deb
 
-      # - name: Scan Docker image with Trivy and generate report
+      # - name: Scan Docker image with Trivy and generate reports
       #   id: trivy_scan
       #   run: |
       #     trivy image --exit-code 0 --format json --output trivy-report.json priyalog/nodejs:latest
